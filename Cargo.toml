@@ -1,0 +1,15 @@
+[package]
+name = "github-app-proxy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+hyper = { version = "0.14", features = ["full"] }
+hyper-rustls = "0.24"
+jsonwebtoken = "9"
+octocrab = { version = "0.38", default-features = false, features = ["default-client", "rustls"] }
+secrecy = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+url = "2"
