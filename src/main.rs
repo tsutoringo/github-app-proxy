@@ -10,14 +10,22 @@ use hyper_rustls::HttpsConnectorBuilder;
 use jsonwebtoken::EncodingKey;
 use octocrab::models::AppId;
 use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::Mutex;
 
 use crate::config::Config;
+
+pub(crate) struct CachedToken {
+    pub(crate) token: String,
+    pub(crate) expires_at: Instant,
+}
 
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub(crate) config: Config,
     pub(crate) http_client: Client<hyper_rustls::HttpsConnector<HttpConnector>, Body>,
     pub(crate) octocrab: octocrab::Octocrab,
+    pub(crate) token_cache: Arc<Mutex<Option<CachedToken>>>,
 }
 
 #[tokio::main]
@@ -36,6 +44,7 @@ async fn main() -> Result<()> {
         config,
         http_client,
         octocrab,
+        token_cache: Arc::new(Mutex::new(None)),
     });
 
     let addr = state.config.listen_addr;
