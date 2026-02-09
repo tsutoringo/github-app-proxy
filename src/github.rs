@@ -5,7 +5,7 @@ use octocrab::models::InstallationId;
 use secrecy::ExposeSecret;
 use std::time::{Duration, Instant};
 
-const TOKEN_TTL: Duration = Duration::from_secs(3600); // GitHub tokens last ~1 hour
+const TOKEN_TTL: Duration = Duration::from_secs(3600 - 60); // GitHub tokens last ~1 hour
 
 pub(crate) struct CachedToken {
     pub(crate) token: String,
