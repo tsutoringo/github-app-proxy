@@ -35,7 +35,15 @@ async fn proxy_request(req: Request<Body>, state: Arc<AppState>) -> Result<Respo
         .path_and_query()
         .map(|value| value.as_str())
         .unwrap_or("/");
-    let target_uri = build_target_uri(&state.config.git_base, path_and_query)?;
+
+    let is_mcp = is_mcp_request(req.uri().path());
+    let target_base = if is_mcp {
+        &state.config.githubcopilot_api_base
+    } else {
+        &state.config.git_base
+    };
+
+    let target_uri = build_target_uri(target_base, path_and_query)?;
     let authority = target_uri
         .authority()
         .map(|value| value.as_str().to_string())
@@ -51,7 +59,12 @@ async fn proxy_request(req: Request<Body>, state: Arc<AppState>) -> Result<Respo
             .headers_mut()
             .context("building request headers")?;
         copy_headers(req.headers(), headers);
-        headers.insert(header::AUTHORIZATION, build_basic_header(&token)?);
+        let auth_header = if is_mcp {
+            build_bearer_header(&token)?
+        } else {
+            build_basic_header(&token)?
+        };
+        headers.insert(header::AUTHORIZATION, auth_header);
         headers.insert(
             header::HOST,
             HeaderValue::from_str(&authority).context("invalid host header")?,
@@ -126,4 +139,13 @@ fn is_hop_header(name: &HeaderName) -> bool {
             | "transfer-encoding"
             | "upgrade"
     )
+}
+
+fn is_mcp_request(path: &str) -> bool {
+    path.starts_with("/mcp")
+}
+
+fn build_bearer_header(token: &str) -> Result<HeaderValue> {
+    let value = format!("Bearer {}", token);
+    HeaderValue::from_str(&value).context("invalid authorization header")
 }
