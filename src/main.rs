@@ -20,7 +20,6 @@ pub(crate) struct CachedToken {
     pub(crate) expires_at: Instant,
 }
 
-#[derive(Clone)]
 pub(crate) struct AppState {
     pub(crate) config: Config,
     pub(crate) http_client: Client<hyper_rustls::HttpsConnector<HttpConnector>, Body>,
