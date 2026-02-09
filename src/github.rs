@@ -27,7 +27,7 @@ pub(crate) async fn fetch_installation_token(
 pub(crate) async fn get_cached_token(state: &AppState) -> Result<String> {
     // Scope for the lock
     {
-        let mut cache = state.token_cache.lock().await;
+        let cache = state.token_cache.lock().await;
 
         // Check if we have a valid cached token
         if let Some(cached) = cache.as_ref() {
