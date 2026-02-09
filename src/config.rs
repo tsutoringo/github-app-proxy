@@ -12,6 +12,7 @@ pub(crate) struct Config {
     pub(crate) app_id: u64,
     pub(crate) installation_id: u64,
     pub(crate) private_key: String,
+    pub(crate) githubcopilot_api_base: Url,
 }
 
 impl Config {
@@ -40,6 +41,11 @@ impl Config {
         let api_prefix = env::var("GITHUB_API_PREFIX").ok();
         let api_base = build_api_base(&git_base, api_prefix)?;
 
+        let githubcopilot_api_base = env::var("GITHUBCOPILOT_API_BASE")
+            .unwrap_or_else(|_| "https://api.githubcopilot.com".to_string());
+        let githubcopilot_api_base = Url::parse(&githubcopilot_api_base)
+            .context("invalid GITHUBCOPILOT_API_BASE")?;
+
         Ok(Self {
             listen_addr,
             git_base,
@@ -47,6 +53,7 @@ impl Config {
             app_id,
             installation_id,
             private_key,
+            githubcopilot_api_base,
         })
     }
 }
