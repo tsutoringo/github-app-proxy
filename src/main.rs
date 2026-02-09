@@ -10,15 +10,10 @@ use hyper_rustls::HttpsConnectorBuilder;
 use jsonwebtoken::EncodingKey;
 use octocrab::models::AppId;
 use std::sync::Arc;
-use std::time::Instant;
 use tokio::sync::Mutex;
 
 use crate::config::Config;
-
-pub(crate) struct CachedToken {
-    pub(crate) token: String,
-    pub(crate) expires_at: Instant,
-}
+use crate::github::CachedToken;
 
 pub(crate) struct AppState {
     pub(crate) config: Config,

@@ -1,13 +1,16 @@
-use crate::main::CachedToken;
 use crate::AppState;
 use anyhow::{Context, Result};
 use octocrab::models::InstallationId;
 use octocrab::Octocrab;
 use secrecy::ExposeSecret;
-use std::sync::Arc;
 use std::time::Duration;
 
 const TOKEN_TTL: Duration = Duration::from_secs(3600); // GitHub tokens last ~1 hour
+
+pub(crate) struct CachedToken {
+    pub(crate) token: String,
+    pub(crate) expires_at: std::time::Instant,
+}
 
 pub(crate) async fn fetch_installation_token(
     octocrab: &Octocrab,
