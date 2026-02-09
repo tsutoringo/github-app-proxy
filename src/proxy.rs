@@ -28,7 +28,7 @@ pub(crate) async fn handle(
 }
 
 async fn proxy_request(req: Request<Body>, state: Arc<AppState>) -> Result<Response<Body>> {
-    let token = github::fetch_installation_token(&state.octocrab, state.config.installation_id)
+    let token = github::get_cached_token(&state)
         .await?;
     let path_and_query = req
         .uri()
