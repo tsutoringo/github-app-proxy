@@ -9,7 +9,8 @@
 ## 機能
 
 - **自動認証**: GitHub App の秘密鍵を使用して Installation Access Token を自動生成・管理します。
-- **プロキシ**: 適切な認証情報 (`Authorization: Basic x-access-token:<token>`) を付与してリクエストを GitHub API に転送します。
+- **Git プロキシ**: 通常のパスは GitHub / GitHub Enterprise に `Authorization: Basic x-access-token:<token>` を付与して転送します。
+- **REST API プロキシ**: `/api` で始まるリクエストは GitHub REST API に転送します。`/api` プレフィックスは upstream へ送る際に取り除かれ、認証には `Authorization: Bearer <token>` を使用します。
 - **MCP プロキシ**: `/mcp` で始まるリクエストを GitHub Copilot の Remote MCP Server (`https://api.githubcopilot.com/mcp/`) に転送します。認証には `Authorization: Bearer <token>` を使用します。
 - **ヘルスチェック**: `/healthz` エンドポイントにより、サービスの稼働状況を確認できます。
 
@@ -52,9 +53,11 @@ cargo run
 
 1. クライアントからリクエストを受信します。
 2. GitHub App の秘密鍵を使って JWT を生成し、GitHub から Installation Access Token を取得します。
-3. 取得したトークンを使って `Authorization` ヘッダーを構築します。
-   - **GitHub API リクエスト**: `Basic` 認証スキームを使用し、ユーザー名を `x-access-token`、パスワードをトークンとしてエンコードします。
+3. パスに応じて upstream と `Authorization` ヘッダーを切り替えます。
+   - **通常の Git アクセス**: `Basic` 認証スキームを使用し、ユーザー名を `x-access-token`、パスワードをトークンとしてエンコードします。
      - 例: `x-access-token:ghs_...` を Base64 エンコード
+   - **REST API リクエスト** (`/api` で始まるパス): `Bearer` 認証スキームを使用し、upstream へ転送する際は `/api` プレフィックスを取り除きます。
+     - 例: `/api/repos/octo/example/issues` -> `/repos/octo/example/issues`
    - **MCP リクエスト** (`/mcp` で始まるパス): `Bearer` 認証スキームを使用します。
      - 例: `Bearer ghs_...`
-4. リクエストをターゲットの GitHub API または GitHub Copilot MCP Server に転送し、レスポンスをクライアントに返します。
+4. リクエストをターゲットの GitHub / GitHub REST API / GitHub Copilot MCP Server に転送し、レスポンスをクライアントに返します。

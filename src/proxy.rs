@@ -8,6 +8,13 @@ use url::Url;
 use crate::config::with_trailing_slash;
 use crate::{github, AppState};
 
+#[derive(Clone, Copy)]
+enum RouteTarget {
+    Git,
+    RestApi,
+    Mcp,
+}
+
 pub(crate) async fn handle(
     req: Request<Body>,
     state: Arc<AppState>,
@@ -28,22 +35,16 @@ pub(crate) async fn handle(
 }
 
 async fn proxy_request(req: Request<Body>, state: Arc<AppState>) -> Result<Response<Body>> {
-    let token = github::get_cached_token(&state)
-        .await?;
-    let path_and_query = req
-        .uri()
-        .path_and_query()
-        .map(|value| value.as_str())
-        .unwrap_or("/");
-
-    let is_mcp = is_mcp_request(req.uri().path());
-    let target_base = if is_mcp {
-        &state.config.githubcopilot_api_base
-    } else {
-        &state.config.git_base
+    let token = github::get_cached_token(&state).await?;
+    let route = route_target(req.uri().path());
+    let target_base = match route {
+        RouteTarget::Git => &state.config.git_base,
+        RouteTarget::RestApi => &state.config.api_base,
+        RouteTarget::Mcp => &state.config.githubcopilot_api_base,
     };
+    let path_and_query = rewritten_path_and_query(req.uri(), route);
 
-    let target_uri = build_target_uri(target_base, path_and_query)?;
+    let target_uri = build_target_uri(target_base, &path_and_query)?;
     let authority = target_uri
         .authority()
         .map(|value| value.as_str().to_string())
@@ -59,10 +60,9 @@ async fn proxy_request(req: Request<Body>, state: Arc<AppState>) -> Result<Respo
             .headers_mut()
             .context("building request headers")?;
         copy_headers(req.headers(), headers);
-        let auth_header = if is_mcp {
-            build_bearer_header(&token)?
-        } else {
-            build_basic_header(&token)?
+        let auth_header = match route {
+            RouteTarget::Git => build_basic_header(&token)?,
+            RouteTarget::RestApi | RouteTarget::Mcp => build_bearer_header(&token)?,
         };
         headers.insert(header::AUTHORIZATION, auth_header);
         headers.insert(
@@ -142,10 +142,78 @@ fn is_hop_header(name: &HeaderName) -> bool {
 }
 
 fn is_mcp_request(path: &str) -> bool {
-    path.starts_with("/mcp")
+    path == "/mcp" || path.starts_with("/mcp/")
+}
+
+fn is_rest_api_request(path: &str) -> bool {
+    path == "/api" || path.starts_with("/api/")
+}
+
+fn route_target(path: &str) -> RouteTarget {
+    if is_mcp_request(path) {
+        RouteTarget::Mcp
+    } else if is_rest_api_request(path) {
+        RouteTarget::RestApi
+    } else {
+        RouteTarget::Git
+    }
+}
+
+fn rewritten_path_and_query(uri: &Uri, route: RouteTarget) -> String {
+    let path = match route {
+        RouteTarget::RestApi => strip_api_prefix(uri.path()),
+        RouteTarget::Git | RouteTarget::Mcp => uri.path(),
+    };
+
+    match uri.query() {
+        Some(query) => format!("{}?{}", path, query),
+        None => path.to_string(),
+    }
+}
+
+fn strip_api_prefix(path: &str) -> &str {
+    match path.strip_prefix("/api") {
+        Some("") | None => "/",
+        Some(stripped) => stripped,
+    }
 }
 
 fn build_bearer_header(token: &str) -> Result<HeaderValue> {
     let value = format!("Bearer {}", token);
     HeaderValue::from_str(&value).context("invalid authorization header")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{rewritten_path_and_query, route_target, RouteTarget};
+    use hyper::Uri;
+
+    #[test]
+    fn routes_api_prefix_to_rest_api() {
+        assert!(matches!(route_target("/api"), RouteTarget::RestApi));
+        assert!(matches!(route_target("/api/repos/octo/example"), RouteTarget::RestApi));
+        assert!(matches!(route_target("/apix"), RouteTarget::Git));
+    }
+
+    #[test]
+    fn strips_api_prefix_when_forwarding_rest_requests() {
+        let uri: Uri = "/api/repos/octo/example/issues?per_page=100"
+            .parse()
+            .expect("valid uri");
+
+        assert_eq!(
+            rewritten_path_and_query(&uri, RouteTarget::RestApi),
+            "/repos/octo/example/issues?per_page=100"
+        );
+    }
+
+    #[test]
+    fn rewrites_api_root_to_rest_root() {
+        let uri: Uri = "/api?per_page=100".parse().expect("valid uri");
+
+        assert_eq!(
+            rewritten_path_and_query(&uri, RouteTarget::RestApi),
+            "/?per_page=100"
+        );
+    }
 }
